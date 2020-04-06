@@ -1,0 +1,252 @@
+﻿@{
+    ViewBag.Title = "Студенты";
+}
+
+<style>
+</style>
+
+<h1>@ViewBag.Title</h1>
+
+<div id="main" style="position: absolute; top: 160px; left: 10px; bottom: 0px; right: 10px;"></div>
+
+<script type="text/javascript">
+    var newId = 0;
+
+    var genders = [];
+    var groups = [];
+
+    $.ajax({
+        url: '/student/genders',
+        type: 'GET',
+        async: false,
+        success: function (data) {
+            if (data.status = "success") {
+                genders = data.items;
+            }
+        },
+        error: function (data) {
+            w2alert(err);
+        }
+    });
+
+    $.ajax({
+        url: '/group/groups',
+        type: 'GET',
+        async: false,
+        success: function (data) {
+            if (data.status = "success") {
+                groups = data.items;
+            }
+        },
+        error: function (data) {
+            w2alert(err);
+        }
+    });
+
+    var config = {
+        layout: {
+            name: 'layout',
+            padding: 4,
+            panels: [
+                { type: 'left', size: '25%', resizable: true, minSize: 400 },
+                { type: 'main', minSize: 300 }]
+        },
+
+        grid: {
+            name: 'grid',
+            limit: 25,
+            multiSelect: false,
+            multiSearch: false,
+            recid: 'id',
+            show: {
+                toolbar: true,
+                toolbarAdd: true,
+                toolbarDelete: true,
+                toolbarSearch: true,
+                toolbarColumns: false,
+            },
+            columns: [
+                {
+                    field: 'name', caption: 'ФИО', size: '50%', resizable: true, sortable: false, searchable: false,
+                    render: function (record) {
+
+                        return record.lastName + " " + record.firstName + (record.secondName ? " " + record.secondName : "");
+
+                    }
+                },
+                { field: 'callSign', caption: 'Позывной', size: '50%', resizable: true, sortable: true, searchable: true }
+
+            ],
+            searches: [
+                { field: 'id', caption: 'Id', type: 'fullInt' },
+                { field: 'firstName;lastName;secondName', caption: 'ФИО', type: 'text' },
+                { field: 'callSign', caption: 'Позывной', type: 'text' },
+                {
+                    field: 'gender', caption: 'Пол', type: 'select', options: {
+                        items: genders,
+                    }
+                },
+                {
+                    field: 'group', caption: 'Группа', type: 'select', options: {
+                        items: groups,
+                    }
+                }
+            ],
+            url: '/student/list',
+            onRequest: function (event) {
+                w2utils.settings['dataType'] = 'JSON';
+                event.onComplete = function () {
+                    w2utils.settings['dataType'] = 'HTTP';
+                };
+            },
+            onDelete: function (event) {
+                w2utils.settings['dataType'] = 'JSON';
+                var grid = this;
+
+                event.onComplete = function () {
+                    w2utils.settings['dataType'] = 'HTTP';
+
+                    var id = grid.getSelection()[0];
+
+                    $.ajax({
+                        url: '/student/delete',
+                        type: 'DELETE',
+                        data: { "id": id },
+                        success: function (data) {
+                            if (data.status = "success") {
+                                grid.reload();
+                            }
+                        },
+                        error: function (data) {
+                            w2alert(err);
+                        }
+                    });
+                };
+            },
+            onRefresh: function (event) {
+                var grid = this;
+                event.onComplete = function () {
+                    if (grid.records.length > 0 && grid.getSelection().length == 0) {
+                        grid.select(grid.records[0].recid);
+                    }
+                }
+            },
+            onRender: function (event) {
+                event.onComplete = function () {
+                    $('#grid_grid_search_all').on("change", function () {
+
+                        var grid = w2ui['grid'];
+                        var val = $('#grid_grid_search_all').val().trim();
+                        var sel = $('#grid_grid_search_all').data('selected');
+                        var fld = $('#grid_grid_search_all').data('w2field');
+                        if (fld) val = fld.clean(val);
+                        if (fld && fld.type == 'list' && sel && typeof sel.id == 'undefined') {
+                            grid.searchReset();
+                        }
+                        else {
+                            grid.search(grid.last.field, val);
+                        }
+
+                        console.log('val', val);
+                    });
+                }
+            },
+            onSelect: function (event) {
+                var grid = this;
+                var form = w2ui.infoForm;
+
+                event.onComplete = function () {
+                    var sel = grid.getSelection();
+                    if (sel.length == 1) {
+                        form.recid = sel[0];
+                        form.record = $.extend(true, {}, grid.get(sel[0]));
+
+                        form.refresh();
+                    }
+                }
+            },
+            onAdd: function (event) {
+                var grid = this;
+                $.ajax({
+                    url: '/student/add',
+                    type: 'POST',
+                    success: function (ret) {
+                        newId = ret.message * 1;
+                        grid.select(newId);
+                        w2popup.close();
+                        w2ui.grid.reload();
+                    },
+                    error: function (err) {
+                        w2alert(err);
+                    }
+                });
+            }
+        },
+
+        infoForm: {
+            header: 'Свойства',
+            name: 'infoForm',
+            url: '/student/info',
+            submitJson: true,
+            fields: [
+                { name: 'id', type: 'text', html: { caption: 'Id', attr: 'style="width:100%" readonly' }, },
+                { name: 'firstName', type: 'text', html: { caption: 'Имя', attr: 'style="width:100%"' } },
+                { name: 'lastName', type: 'text', html: { caption: 'Фамилия', attr: 'style="width:100%"' } },
+                { name: 'secondName', type: 'text', html: { caption: 'Отчество', attr: 'style="width:100%"' } },
+                { name: 'callSign', type: 'text', html: { caption: 'Позывной', attr: 'style="width:100%;"' } },
+                {
+                    name: 'genderId', type: 'select', html: { caption: 'Пол', attr: 'style="width:100%"' },
+                    options: {
+                        items: genders,  
+                    }
+                },
+                {
+                    name: 'groups', type: 'enum', html: { caption: 'Группы', attr: 'style="width:100%"' },
+                    options: {
+                        url: '/group/GroupList',
+                        openOnFocus: true,
+                        minLength: 0,
+                        renderItem: function (item, index, removeDiv) {
+                            return removeDiv + item.text;
+                        },
+                        renderDrop: function (item) {
+                            return item.text;
+                        },
+                        compare: function (item, search) {
+                            var re1 = new RegExp(search, 'i');
+                            return re1.test(item.text);
+                        },
+                    }
+                },
+
+            ],
+            actions: {
+                save: {
+                    caption: 'Сохранить', 'class': 'btn btn-green',
+                    onClick: function () {
+                        var errors = this.validate();
+                        if (errors.length > 0) return;
+
+                        w2ui.grid.set(this.recid, this.record);
+
+                        this.save();
+                    }
+                }
+            },
+            onSubmit: function (event) {
+                w2utils.settings['dataType'] = 'JSON';
+                event.onComplete = function () {
+                    w2utils.settings['dataType'] = 'HTTP';
+                };
+            },
+        },
+    }
+
+    $(function () {
+        w2utils.locale('/js/w2ui.ru-ru.js');
+
+        $('#main').w2layout(config.layout);
+        w2ui.layout.content('left', $().w2grid(config.grid));
+        w2ui.layout.content('main', $().w2form(config.infoForm));
+    });
+</script>

@@ -1,0 +1,177 @@
+﻿@{
+    ViewBag.Title = "Группы";
+}
+
+<style>
+    #tb_grid_toolbar_item_w2ui-search-advanced {
+        display: none;
+    }
+</style>
+
+<h1>@ViewBag.Title</h1>
+
+<div id="main" style="position: absolute; top: 160px; left: 10px; bottom: 0px; right: 10px;"></div>
+
+<script type="text/javascript">
+    var newId = 0;
+
+    var config = {
+        layout: {
+            name: 'layout',
+            padding: 4,
+            panels: [
+                { type: 'left', size: '25%', resizable: true, minSize: 400 },
+                { type: 'main', minSize: 300 }]
+        },
+
+        grid: {
+            name: 'grid',
+            limit: 25,
+            multiSelect: false,
+            multiSearch: false,
+            recid: 'id',
+            show: {
+                toolbar: true,
+                toolbarAdd: true,
+                toolbarDelete: true,
+                toolbarSearch: true,
+                toolbarColumns: false,
+            },
+            columns: [
+                { field: 'title', caption: 'Название', size: '100%', resizable: true, sortable: true, searchable: true }
+
+            ],
+            searches: [
+                { field: 'title', caption: 'Название', type: 'text' },
+            ],
+            url: '/group/list',
+            onRequest: function (event) {
+                w2utils.settings['dataType'] = 'JSON';
+                event.onComplete = function () {
+                    w2utils.settings['dataType'] = 'HTTP';
+                };
+            },
+            onDelete: function (event) {
+                w2utils.settings['dataType'] = 'JSON';
+                var grid = this;
+
+                event.onComplete = function () {
+                    w2utils.settings['dataType'] = 'HTTP';
+
+                    var id = grid.getSelection()[0];
+
+                    $.ajax({
+                        url: '/group/delete',
+                        type: 'DELETE',
+                        data: { "id": id },
+                        success: function (data) {
+                            if (data.status = "success") {
+                                grid.reload();
+                            }
+                        },
+                        error: function (data) {
+                            w2alert(err);
+                        }
+                    });
+                };
+            },
+            onRefresh: function (event) {
+                var grid = this;
+
+                event.onComplete = function () {
+                    if (grid.records.length > 0 && grid.getSelection().length == 0) {
+                        grid.select(grid.records[0].recid);
+                    }
+                }
+            },
+            onRender: function (event) {
+                event.onComplete = function () {
+                    $('#grid_grid_search_all').on("change", function () {
+
+                        var grid = w2ui['grid'];
+                        var val = $('#grid_grid_search_all').val().trim();
+                        var sel = $('#grid_grid_search_all').data('selected');
+                        var fld = $('#grid_grid_search_all').data('w2field');
+                        if (fld) val = fld.clean(val);
+                        if (fld && fld.type == 'list' && sel && typeof sel.id == 'undefined') {
+                            grid.searchReset();
+                        }
+                        else {
+                            grid.search(grid.last.field, val);
+                        }
+                    });
+                }
+            },
+            onSelect: function (event) {
+                var grid = this;
+                var form = w2ui.infoForm;
+
+                event.onComplete = function () {
+                    var sel = grid.getSelection();
+                    if (sel.length == 1) {
+                        form.recid = sel[0];
+                        form.record = $.extend(true, {}, grid.get(sel[0]));
+
+                        form.refresh();
+                    }
+                }
+            },
+            onAdd: function (event) {
+                var grid = this;
+                $.ajax({
+                    url: '/group/add',
+                    type: 'POST',
+                    success: function (ret) {
+                        newId = ret.message * 1;
+                        grid.select(newId);
+
+                        w2popup.close();
+                        w2ui.grid.reload();
+                    },
+                    error: function (err) {
+                        w2alert(err);
+                    }
+                });
+            }
+        },
+
+        infoForm: {
+            header: 'Свойства',
+            name: 'infoForm',
+            url: '/group/info',
+            submitJson: true,
+            fields: [
+                { name: 'id', type: 'text', html: { caption: 'Id', attr: 'style="width:100%" readonly' }, },
+                { name: 'title', type: 'text', html: { caption: 'Название', attr: 'style="width:100%"' } },
+                { name: 'userCount', type: 'text', html: { caption: 'Пользователей', attr: 'style="width:100%" readonly' } },
+            ],
+            actions: {
+                save: {
+                    caption: 'Сохранить', 'class': 'btn btn-green',
+                    onClick: function () {
+                        var errors = this.validate();
+                        if (errors.length > 0) return;
+
+                        w2ui.grid.set(this.recid, this.record);
+
+                        this.save();
+                    }
+                }
+            },
+            onSubmit: function (event) {
+                w2utils.settings['dataType'] = 'JSON';
+                event.onComplete = function () {
+                    w2utils.settings['dataType'] = 'HTTP';
+                };
+            },
+        },
+    }
+
+    $(function () {
+        w2utils.locale('/js/w2ui.ru-ru.js');
+
+        $('#main').w2layout(config.layout);
+        w2ui.layout.content('left', $().w2grid(config.grid));
+        w2ui.layout.content('main', $().w2form(config.infoForm));
+    });
+</script>
